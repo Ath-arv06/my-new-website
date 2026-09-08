@@ -318,7 +318,75 @@ const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL
 const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 const FIREBASE_URL = process.env.FIREBASE_DATABASE_URL || process.env.FIREBASE_URL;
 
+// Supabase Cloud PostgreSQL Configuration
+const SUPABASE_URL = process.env.SUPABASE_URL ? process.env.SUPABASE_URL.replace(/\/$/, '') : null;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+
+async function loadFromSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/verified_documents?select=*&order=Upload_Date.desc`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    } else {
+      console.warn('Supabase fetch returned:', resp.status, await resp.text());
+    }
+  } catch (e) {
+    console.error('Supabase load error:', e.message);
+  }
+  return null;
+}
+
+async function upsertToSupabase(doc) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return false;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/verified_documents`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=representation'
+      },
+      body: JSON.stringify(doc)
+    });
+    return resp.ok;
+  } catch (e) {
+    console.error('Supabase upsert error:', e.message);
+    return false;
+  }
+}
+
+async function deleteFromSupabase(docId) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return false;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/verified_documents?Document_ID=eq.${encodeURIComponent(docId)}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    return resp.ok;
+  } catch (e) {
+    console.error('Supabase delete error:', e.message);
+    return false;
+  }
+}
+
 async function loadFromCloudKv() {
+  // Check Supabase first (preferred cloud database)
+  const supabaseDocs = await loadFromSupabase();
+  if (supabaseDocs && supabaseDocs.length > 0) return supabaseDocs;
+
   if (KV_URL && KV_TOKEN) {
     try {
       const resp = await fetch(`${KV_URL}/get/authbridge_verified_docs`, {
@@ -451,10 +519,28 @@ const server = http.createServer(async (req, res) => {
   // REST API: Verified_Documents Database Endpoints
   // --------------------------------------------------------------------------
 
+  // 0. GET /api/db-status (Check active database provider and health)
+  if (pathname === '/api/db-status' && req.method === 'GET') {
+    const isSupabase = !!(SUPABASE_URL && SUPABASE_KEY);
+    const docs = loadDb();
+    return sendJson(res, 200, {
+      success: true,
+      provider: isSupabase ? 'Supabase (PostgreSQL)' : 'Local File / Ephemeral Cache',
+      supabaseConfigured: isSupabase,
+      supabaseUrl: SUPABASE_URL ? SUPABASE_URL.replace(/https:\/\/(.{4}).*(\.supabase\.co)/, 'https://$1***$2') : null,
+      recordCount: docs.length
+    });
+  }
+
   // 1. GET /api/verified-documents
   if (pathname === '/api/verified-documents' && req.method === 'GET') {
+    const cloudDocs = await loadFromCloudKv();
+    if (cloudDocs && Array.isArray(cloudDocs) && cloudDocs.length > 0) {
+      saveDb(cloudDocs);
+      return sendJson(res, 200, { success: true, count: cloudDocs.length, data: cloudDocs, source: SUPABASE_URL ? 'supabase' : 'cloud' });
+    }
     const docs = loadDb();
-    return sendJson(res, 200, { success: true, count: docs.length, data: docs });
+    return sendJson(res, 200, { success: true, count: docs.length, data: docs, source: 'local' });
   }
 
   // 2. POST / PUT /api/verified-documents (Register or Update Verified Document)
@@ -513,7 +599,14 @@ const server = http.createServer(async (req, res) => {
       }
 
       saveDb(docs);
-      return sendJson(res, existingIdx >= 0 ? 200 : 201, { success: true, message: 'Document successfully registered/updated in Verified_Documents database', record: newRecord });
+      await upsertToSupabase(newRecord);
+
+      return sendJson(res, existingIdx >= 0 ? 200 : 201, {
+        success: true,
+        message: 'Document successfully registered/updated in Verified_Documents database',
+        record: newRecord,
+        syncedToSupabase: !!(SUPABASE_URL && SUPABASE_KEY)
+      });
     } catch (err) {
       return sendJson(res, 400, { success: false, error: err.message });
     }
@@ -533,7 +626,14 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 404, { success: false, error: 'Document ID not found' });
       }
       saveDb(docs);
-      return sendJson(res, 200, { success: true, message: `Document ${docId} removed from verified registry`, remaining: docs.length });
+      await deleteFromSupabase(docId);
+
+      return sendJson(res, 200, {
+        success: true,
+        message: `Document ${docId} removed from verified registry`,
+        remaining: docs.length,
+        syncedToSupabase: !!(SUPABASE_URL && SUPABASE_KEY)
+      });
     } catch (err) {
       return sendJson(res, 500, { success: false, error: err.message });
     }

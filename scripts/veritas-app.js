@@ -701,6 +701,11 @@ class VeritasApp {
           baseDocs = json.data;
         }
       }
+      // Also fetch database status
+      const statusResp = await fetch('/api/db-status');
+      if (statusResp.ok) {
+        this.dbStatus = await statusResp.json();
+      }
     } catch (e) {
       console.warn('API load failed, using local storage or baseline seeds:', e);
     }
@@ -6386,7 +6391,13 @@ class VeritasApp {
       <section class="panel" style="margin-bottom: 22px; border: 2px solid var(--brand-accent); background: #F8FAFC;">
         <div class="panel-heading" style="flex-wrap: wrap; gap: 12px;">
           <div>
-            <span class="eyebrow" style="color: var(--brand-accent);">STEP 1: POPULATE DATABASE REFERENCES</span>
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              <span class="eyebrow" style="color: var(--brand-accent); margin: 0;">STEP 1: POPULATE DATABASE REFERENCES</span>
+              <span style="display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; ${this.dbStatus && this.dbStatus.supabaseConfigured ? 'background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0;' : 'background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE;'}">
+                <i data-lucide="${this.dbStatus && this.dbStatus.supabaseConfigured ? 'cloud-check' : 'database'}" style="width: 12px; height: 12px;"></i>
+                ${this.dbStatus && this.dbStatus.supabaseConfigured ? '☁️ Supabase Cloud Active' : '💾 Local / Supabase-Ready'}
+              </span>
+            </div>
             <h2>Upload Genuine Document Data to Database</h2>
             <p class="section-help" style="margin: 0;">Upload real, verified identity documents directly to the trusted database. The system extracts details, computes cryptographic SHA-256 hashes, and maintains the authoritative baseline.</p>
           </div>
