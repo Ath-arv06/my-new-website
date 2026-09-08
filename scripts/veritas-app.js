@@ -311,235 +311,9 @@ const initialAuditEvents = [
 
 
 // ============================================================================
-// VERIFIED_DOCUMENTS TRUSTED DATABASE BASELINE SEED
+// VERIFIED_DOCUMENTS TRUSTED DATABASE (Clean initial state; user adds own authentic records)
 // ============================================================================
-const verifiedDocumentsBaseline = [
-  {
-    "Document_ID": "DOC-VER-021",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "9372 7070 4044",
-    "Document_Hash": "96d8e11a795d509119250292df73a52d9558cf857bc52096859c67b329628e87",
-    "Upload_Date": "2026-09-08T08:32:16.815Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Saurabh Singh",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-020",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "9302 1307 7797",
-    "Document_Hash": "c526b8391b295cb2f2d14e8c595e0fb4eff7924b934d4abaa55d6ff80d1200c1",
-    "Upload_Date": "2026-09-08T15:16:42.798Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Divyansh Singh",
-    "Issuing_Authority": "UNIQUE IDENTIFICATION AUTHORITY OF INDIA (UIDAI)",
-    "Notes": "Genuine baseline uploaded via Database References on 9/8/2026",
-    "Father_Name": "",
-    "Date_Of_Birth": "15/12/2005",
-    "Gender": "",
-    "Address": "",
-    "Issue_Date": "",
-    "Validity_Date": "",
-    "Blood_Group": "",
-    "Extracted_Fields": null
-  },
-  {
-    "Document_ID": "DOC-VER-019",
-    "Document_Type": "PAN",
-    "Extracted_ID_Number": "FAVPG7366H",
-    "Document_Hash": "5929e3f5779af4644f3069847a8ff7d76debd6b4745fe74ff4dc9b5051dcc9a5",
-    "Upload_Date": "2026-09-08T08:21:23.773Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Shubh Gupta",
-    "Issuing_Authority": "PAN Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-018",
-    "Document_Type": "PAN",
-    "Extracted_ID_Number": "DVEPS1339Q",
-    "Document_Hash": "5d7ce61e8abd7aed613a4d5b409d41b84a6a5bd1fffce3426d0269e29060fd02",
-    "Upload_Date": "2026-09-08T08:20:32.674Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "RUCHI CHOUDHARY",
-    "Issuing_Authority": "PAN Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-017",
-    "Document_Type": "PAN",
-    "Extracted_ID_Number": "KCUPM5157C",
-    "Document_Hash": "32cf5383459a88d004c46cee8f04b9c084b4e2f50cab092d1126a129682ee0ba",
-    "Upload_Date": "2026-09-08T08:17:33.954Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Alwin Mathew",
-    "Issuing_Authority": "PAN Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-016",
-    "Document_Type": "VoterID",
-    "Extracted_ID_Number": "TEE3397882",
-    "Document_Hash": "072840dbc3f3eb24cbead2bf8e083813fd722c9f82ab0f141f1bf0220c4932e3",
-    "Upload_Date": "2026-09-08T08:16:41.823Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "MANAS KASAUDHAN",
-    "Issuing_Authority": "VoterID Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-015",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "8727 4007 5987",
-    "Document_Hash": "838a556674f0e6dd9d8c711cf89a29c03987d33f4048981a7357413b74a5626b",
-    "Upload_Date": "2026-09-08T08:16:03.037Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Aarush Pandey",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-014",
-    "Document_Type": "VoterID",
-    "Extracted_ID_Number": "NCY1515949",
-    "Document_Hash": "73e1125a22870edd9819f14eb58ab1f79423d9c36fd0dbde99d56193c4c6bcff",
-    "Upload_Date": "2026-09-08T08:15:00.018Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "SONI SHRIVASTAVA",
-    "Issuing_Authority": "VoterID Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-013",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "849198678039",
-    "Document_Hash": "3dfb1cea69c61ec7445243fc39b97e9bbaee7f857ed0e26a3733645f059c8eeb",
-    "Upload_Date": "2026-09-08T08:14:16.232Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Prateek Sharma",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-012",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "6099 5669 7236",
-    "Document_Hash": "4e102bb3535e9d762785065ca6d72f061c528c4d4bcbcf02e23e98363234ac4f",
-    "Upload_Date": "2026-09-08T08:13:37.150Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Pranati Choudhary",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-011",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "9388 3573 2118",
-    "Document_Hash": "598b5ee5e67c96be68d8483c6740bebe83a27fcc2cb8a73f35c36b3f211cc5a8",
-    "Upload_Date": "2026-09-08T08:13:13.215Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "Pawan Singh",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-010",
-    "Document_Type": "PAN",
-    "Extracted_ID_Number": "URGPS3759P",
-    "Document_Hash": "b762294acde0d80818ad746a9af8ca7bd3c2188012ad67b89905e00f69d22c49",
-    "Upload_Date": "2026-09-08T08:12:52.548Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "SANYA SHRIVASTAVA",
-    "Issuing_Authority": "PAN Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 08/09/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-008",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "417514794065",
-    "Document_Hash": "c66f33a163b2709899402e130b00d354a45917fc8bf4b0c022bdbdb0f1a70fe2",
-    "Upload_Date": "2026-09-08T05:31:20.644Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "SANYA SHRIVASTAVA",
-    "Issuing_Authority": "Aadhaar National Authority",
-    "Notes": "Officially registered genuine credential"
-  },
-  {
-    "Document_ID": "DOC-VER-007",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "226895661166",
-    "Document_Hash": "f19f5e82e7c4f713f26137c9ab4d821b25b18c66f82dd03968faddbe4819f426",
-    "Upload_Date": "2026-09-08T03:56:53.911Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "ATHARV SRIVASTAVA",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-006",
-    "Document_Type": "Aadhaar",
-    "Extracted_ID_Number": "518034528577",
-    "Document_Hash": "21f91eb97a1d4a1c8b8399b3ada88351980be1d44dc786bf9754534e1fc90b5d",
-    "Upload_Date": "2026-09-08T03:55:21.882Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "PRAHARSH CHOUDHARY",
-    "Issuing_Authority": "Aadhaar Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-005",
-    "Document_Type": "PAN",
-    "Extracted_ID_Number": "DLGPC1327G",
-    "Document_Hash": "f6ad41e07f2b026be281b8e2c827c2761c19475ebb70dffe3b58e7f24c9b53b6",
-    "Upload_Date": "2026-09-08T03:53:14.419Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "PRAHARSH CHOUDHARY",
-    "Issuing_Authority": "PAN Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-003",
-    "Document_Type": "DL",
-    "Extracted_ID_Number": "UP93 20250009578",
-    "Document_Hash": "608f5fe9c637f720a95b82fe5ef4cb42654ab63a1f132990f436a26eb0930203",
-    "Upload_Date": "2026-09-08T03:50:57.002Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "BHOOMIKA   MAHOR",
-    "Issuing_Authority": "DL Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026"
-  },
-  {
-    "Document_ID": "DOC-VER-002",
-    "Document_Type": "DL",
-    "Extracted_ID_Number": "MP 07 20260017915",
-    "Document_Hash": "db5f95aff327eb32773f6629272c532246e92c59cb50c141260d8bb59884d0dd",
-    "Upload_Date": "2026-09-08T03:47:43.962Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "SHUBH GUPTA",
-    "Issuing_Authority": "DL Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026",
-    "Father_Name": "",
-    "Date_Of_Birth": "",
-    "Gender": "",
-    "Address": "",
-    "Issue_Date": "",
-    "Validity_Date": "",
-    "Blood_Group": "",
-    "Extracted_Fields": null
-  },
-  {
-    "Document_ID": "DOC-VER-001",
-    "Document_Type": "DL",
-    "Extracted_ID_Number": "UP34 20250011079",
-    "Document_Hash": "23eece2786b2c32f7e0525ba3e17fa22c59a573045e16b35d1223d01cfd4a7f9",
-    "Upload_Date": "2026-09-08T03:46:28.250Z",
-    "Admin_ID": "OFF-1042",
-    "Holder_Name": "PRAHARSH CHOUDHARY",
-    "Issuing_Authority": "DL Official Authority",
-    "Notes": "Genuine baseline uploaded via Database References on 8/9/2026"
-  }
-];
+const verifiedDocumentsBaseline = [];
 
 class VeritasApp {
   constructor() {
@@ -558,7 +332,22 @@ class VeritasApp {
       this.thresholds = { low: 50, high: 75 };
     }
     this.auditEvents = [...initialAuditEvents];
-    this.showSourceRegions = false;
+    this.exporting = false;
+    this.pendingVerifications = [];
+    this.activityPeriod = '7d';
+
+    // Verified_Documents Database state (Clean live registry)
+    try {
+      const cached = localStorage.getItem('authbridge_verified_docs_v3');
+      if (cached) {
+        const p = JSON.parse(cached);
+        this.verifiedDocuments = Array.isArray(p) ? p : [];
+      } else {
+        this.verifiedDocuments = [];
+      }
+    } catch (e) {
+      this.verifiedDocuments = [];
+    }
     this.forensicMode = 'Original';
 
     // State for live uploaded images in New Verification
@@ -737,7 +526,7 @@ class VeritasApp {
       });
       if (resp.ok) {
         const json = await resp.json();
-        if (Array.isArray(json) && json.length > 0) {
+        if (Array.isArray(json)) {
           cloudDocs = json;
           this.dbStatus = {
             success: true,
@@ -752,13 +541,13 @@ class VeritasApp {
       console.warn('Direct Supabase fetch error, trying backend API:', e);
     }
 
-    // 2. Fallback to /api/verified-documents with cache-busting
-    if (!cloudDocs || cloudDocs.length === 0) {
+    // 2. Fallback to /api/verified-documents with cache-busting only if Supabase call failed
+    if (cloudDocs === null) {
       try {
         const resp = await fetch(`/api/verified-documents?_t=${Date.now()}`, { cache: 'no-store' });
         if (resp.ok) {
           const json = await resp.json();
-          if (json && json.data && Array.isArray(json.data) && json.data.length > 0) {
+          if (json && Array.isArray(json.data)) {
             cloudDocs = json.data;
           }
         }
@@ -767,19 +556,19 @@ class VeritasApp {
       }
     }
 
-    // 3. Fallback to local storage or baseline
-    if (!cloudDocs || cloudDocs.length === 0) {
+    // 3. Fallback to local storage only if network calls failed
+    if (cloudDocs === null) {
       try {
         const cached = localStorage.getItem('authbridge_verified_docs_v3');
         if (cached) {
           const p = JSON.parse(cached);
-          if (Array.isArray(p) && p.length > 0) cloudDocs = p;
+          if (Array.isArray(p)) cloudDocs = p;
         }
       } catch (e) {}
     }
 
-    if (!cloudDocs || cloudDocs.length === 0) {
-      cloudDocs = [...verifiedDocumentsBaseline];
+    if (cloudDocs === null) {
+      cloudDocs = [];
     }
 
     this.verifiedDocuments = cloudDocs;
@@ -930,103 +719,46 @@ class VeritasApp {
     this.renderScreen();
   }
 
-  async resetVerifiedDocumentsSeed() {
+  async clearAllVerifiedDocuments() {
+    if (!confirm('Are you sure you want to permanently delete ALL records from the database? This cannot be undone.')) {
+      return;
+    }
+
+    this.verifiedDocuments = [];
     try {
-      localStorage.removeItem('authbridge_deleted_doc_ids');
-      localStorage.removeItem('authbridge_custom_docs');
+      localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify([]));
     } catch (e) {}
 
+    // Delete ALL directly from Supabase
     try {
-      const resp = await fetch('/api/verified-documents/seed', { method: 'POST' });
-      if (resp.ok) {
-        const json = await resp.json();
-        this.verifiedDocuments = json.data;
-      } else {
-        try {
-      const cached = localStorage.getItem('authbridge_verified_docs_v3');
-      if (cached) {
-        const p = JSON.parse(cached);
-        if (Array.isArray(p) && p.length > 0) {
-          this.verifiedDocuments = p;
-        } else {
-          this.verifiedDocuments = [...verifiedDocumentsBaseline];
+      const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/verified_documents?Document_ID=neq.`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_CONFIG.anonKey,
+          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
         }
-      } else {
-        this.verifiedDocuments = [...verifiedDocumentsBaseline];
+      });
+      if (supaResp.ok) {
+        console.log('✅ All documents permanently deleted from Supabase');
       }
-    } catch (e) {
-      this.verifiedDocuments = [...verifiedDocumentsBaseline];
+    } catch (err) {
+      console.warn('Supabase clear error:', err);
     }
-      }
-    } catch (e) {
-      try {
-      const cached = localStorage.getItem('authbridge_verified_docs_v3');
-      if (cached) {
-        const p = JSON.parse(cached);
-        if (Array.isArray(p) && p.length > 0) {
-          this.verifiedDocuments = p;
-        } else {
-          this.verifiedDocuments = [...verifiedDocumentsBaseline];
-        }
-      } else {
-        this.verifiedDocuments = [...verifiedDocumentsBaseline];
-      }
-    } catch (e) {
-      this.verifiedDocuments = [...verifiedDocumentsBaseline];
-    }
-    }
+
+    // Also notify backend API to clear all
     try {
-      localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(this.verifiedDocuments));
+      fetch('/api/verified-documents?all=true', { method: 'DELETE' }).catch(() => {});
     } catch (e) {}
-    this.showToast('Verified_Documents database reset to 12 baseline seed records.');
+
+    this.showToast('All records permanently deleted from database.');
     this.renderScreen();
+  }
+  async resetVerifiedDocumentsSeed() {
+    return this.clearAllVerifiedDocuments();
   }
 
   async populate100VerifiedRecords() {
-    try {
-      localStorage.removeItem('authbridge_deleted_doc_ids');
-      localStorage.removeItem('authbridge_custom_docs');
-    } catch (e) {}
-
-    try {
-      const resp = await fetch('/api/verified-documents/seed-100', { method: 'POST' });
-      if (resp.ok) {
-        const json = await resp.json();
-        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-          this.verifiedDocuments = json.data;
-          try {
-            localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(json.data));
-          } catch (e) {}
-          this.dbRefPage = 1;
-          this.showToast(`✨ Successfully populated 100 verified document records into database!`);
-          this.renderScreen();
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Seed-100 API call failed:', e);
-    }
-    try {
-      const cached = localStorage.getItem('authbridge_verified_docs_v3');
-      if (cached) {
-        const p = JSON.parse(cached);
-        if (Array.isArray(p) && p.length > 0) {
-          this.verifiedDocuments = p;
-        } else {
-          this.verifiedDocuments = [...verifiedDocumentsBaseline];
-        }
-      } else {
-        this.verifiedDocuments = [...verifiedDocumentsBaseline];
-      }
-    } catch (e) {
-      this.verifiedDocuments = [...verifiedDocumentsBaseline];
-    }
-    try {
-      localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(this.verifiedDocuments));
-    } catch (e) {}
-    this.dbRefPage = 1;
-    this.showToast(`✨ Successfully populated 100 verified document records into database!`);
-    this.renderScreen();
+    this.showToast('Pre-seeded data disabled. Please upload authentic documents directly.');
   }
 
   setDbRefPage(page) {
@@ -6638,33 +6370,11 @@ class VeritasApp {
             <button class="button secondary btn-sm" onclick="app.exportDatabase('csv')" title="Download all records as CSV">
               <i data-lucide="download" style="width: 13px; height: 13px;"></i> Export CSV
             </button>
-            
+            <button class="button secondary btn-sm" onclick="app.clearAllVerifiedDocuments()" style="color: #DC2626; border-color: rgba(220,38,38,0.3);" title="Permanently delete all records from database">
+              <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i> Clear All Records
+            </button>
             <button class="button primary btn-sm" onclick="app.openAddVerifiedDocModal()" style="background: #2563EB; border-color: #2563EB; font-weight: 700;">
               <i data-lucide="plus" style="width: 13px; height: 13px;"></i> + New Record
-            </button>
-          </div>
-        </div>
-
-        <!-- Quick Genuine Sample Document Seeds -->
-        <div style="margin: 12px 0 16px; padding: 10px 14px; background: #FFFFFF; border: 1px solid var(--border); border-radius: 8px;">
-          <div style="font-size: 11px; font-weight: 700; color: var(--text-heading); text-transform: uppercase; margin-bottom: 8px;">
-            <i data-lucide="sparkles" style="width: 13px; height: 13px; vertical-align: -2px; color: var(--brand-accent);"></i> Quick-Add Genuine Test Samples
-          </div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button type="button" class="button secondary btn-sm" onclick="app.quickAddGenuineSample('PAN')" style="font-size: 11px;">
-              + Add Genuine PAN Card
-            </button>
-            <button type="button" class="button secondary btn-sm" onclick="app.quickAddGenuineSample('DL')" style="font-size: 11px;">
-              + Add Genuine Driving License
-            </button>
-            <button type="button" class="button secondary btn-sm" onclick="app.quickAddGenuineSample('Passport')" style="font-size: 11px;">
-              + Add Genuine Passport
-            </button>
-            <button type="button" class="button secondary btn-sm" onclick="app.quickAddGenuineSample('VoterID')" style="font-size: 11px;">
-              + Add Genuine Voter ID
-            </button>
-            <button type="button" class="button secondary btn-sm" onclick="app.quickAddGenuineSample('Aadhaar')" style="font-size: 11px;">
-              + Add Genuine Aadhaar
             </button>
           </div>
         </div>

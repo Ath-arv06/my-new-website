@@ -60,7 +60,7 @@ async function loadFromSupabase() {
     });
     if (resp.ok) {
       const data = await resp.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
     } else {
@@ -109,10 +109,27 @@ async function deleteFromSupabase(docId) {
   }
 }
 
+async function deleteAllFromSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return false;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/verified_documents?Document_ID=neq.`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    return resp.ok;
+  } catch (e) {
+    console.error('Supabase deleteAll error:', e.message);
+    return false;
+  }
+}
+
 async function loadFromCloudKv() {
   // Check Supabase first (preferred cloud database)
   const supabaseDocs = await loadFromSupabase();
-  if (supabaseDocs && supabaseDocs.length > 0) return supabaseDocs;
+  if (supabaseDocs !== null && Array.isArray(supabaseDocs)) return supabaseDocs;
 
   if (KV_URL && KV_TOKEN) {
     try {
@@ -123,7 +140,7 @@ async function loadFromCloudKv() {
         const json = await resp.json();
         if (json && json.result) {
           const parsed = typeof json.result === 'string' ? JSON.parse(json.result) : json.result;
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed)) return parsed;
         }
       }
     } catch (e) {}
@@ -134,7 +151,7 @@ async function loadFromCloudKv() {
       const resp = await fetch(url);
       if (resp.ok) {
         const json = await resp.json();
-        if (Array.isArray(json) && json.length > 0) return json;
+        if (Array.isArray(json)) return json;
       }
     } catch (e) {}
   }
@@ -163,7 +180,7 @@ function saveToCloudKv(data) {
 }
 
 function loadDb() {
-  if (inMemoryDb && Array.isArray(inMemoryDb) && inMemoryDb.length > 0) {
+  if (inMemoryDb !== null && Array.isArray(inMemoryDb)) {
     return inMemoryDb;
   }
 
@@ -171,7 +188,7 @@ function loadDb() {
   try {
     if (fs.existsSync(TMP_DATA_FILE)) {
       const data = JSON.parse(fs.readFileSync(TMP_DATA_FILE, 'utf8'));
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         inMemoryDb = data;
         return inMemoryDb;
       }
@@ -180,8 +197,18 @@ function loadDb() {
     console.warn('Error reading from /tmp:', e);
   }
 
-  // Fallback to local files
-  inMemoryDb = load100SeedData();
+  // Fallback to local file if present and valid
+  try {
+    if (fs.existsSync(LOCAL_DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(LOCAL_DATA_FILE, 'utf8'));
+      if (Array.isArray(data)) {
+        inMemoryDb = data;
+        return inMemoryDb;
+      }
+    }
+  } catch (e) {}
+
+  inMemoryDb = [];
   return inMemoryDb;
 }
 
@@ -373,6 +400,17 @@ module.exports = async (req, res) => {
   // 3. DELETE /api/verified-documents
   if (pathname === '/api/verified-documents' && req.method === 'DELETE') {
     try {
+      if (parsedUrl.searchParams.get('all') === 'true') {
+        saveDb([]);
+        await deleteAllFromSupabase();
+        return sendJson(res, 200, {
+          success: true,
+          message: 'All verified documents deleted permanently',
+          remaining: 0,
+          syncedToSupabase: !!(SUPABASE_URL && SUPABASE_KEY)
+        });
+      }
+
       const docId = parsedUrl.searchParams.get('id');
       if (!docId) {
         return sendJson(res, 400, { success: false, error: 'Missing document id parameter' });
@@ -380,9 +418,6 @@ module.exports = async (req, res) => {
       let docs = loadDb();
       const initialLen = docs.length;
       docs = docs.filter(d => d.Document_ID !== docId);
-      if (docs.length === initialLen) {
-        return sendJson(res, 404, { success: false, error: 'Document ID not found' });
-      }
       saveDb(docs);
       await deleteFromSupabase(docId);
 
