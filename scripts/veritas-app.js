@@ -9,6 +9,12 @@
  * - Strict Privacy & Anti-Enumeration: Hash records are concealed/masked from public display
  */
 
+// Supabase Cloud PostgreSQL Client Configuration (Enables Direct Multi-Device Cloud Sync)
+const SUPABASE_CONFIG = {
+  url: 'https://xhwwekfpiqnfpeqcrbhr.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhod3dla2ZwaXFuZnBlcWNyYmhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4ODUwNjUsImV4cCI6MjEwNDQ2MTA2NX0.gNiqZtm2oj5AZu8nAcRe3AdZFMuxxY8GKud-QLyyfC0'
+};
+
 // Helper to encode SVG string as Data URL
 function createSvgDataUrl(svgString) {
   return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString.trim());
@@ -643,6 +649,33 @@ class VeritasApp {
     await this.loadVerifiedDocuments();
     this.bindNavigation();
     this.renderScreen();
+
+    // Multi-Device Realtime Cloud Sync (Ensures any laptop instantly displays data added from another laptop)
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', () => {
+        this.loadVerifiedDocuments().then(() => {
+          if (this.screen === 'Database References') this.renderScreen();
+        });
+      });
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          this.loadVerifiedDocuments().then(() => {
+            if (this.screen === 'Database References') this.renderScreen();
+          });
+        }
+      });
+      // Periodic background polling every 6 seconds for continuous multi-laptop sync
+      setInterval(() => {
+        if (!document.hidden) {
+          this.loadVerifiedDocuments().then(() => {
+            const dbBadge = document.getElementById('dbRefCountBadge');
+            if (dbBadge && this.verifiedDocuments) {
+              dbBadge.textContent = this.verifiedDocuments.length;
+            }
+          });
+        }
+      }, 6000);
+    }
   }
 
   riskLabel(score) {
@@ -686,60 +719,72 @@ class VeritasApp {
   }
 
   // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // VERIFIED_DOCUMENTS DATABASE METHODS (CRUD & AUDITING)
+  // Direct Supabase Cloud PostgreSQL Sync (Realtime Across All Laptops & Devices)
   // --------------------------------------------------------------------------
   async loadVerifiedDocuments() {
-    const deletedIds = this.getDeletedDocIds();
-    const customDocs = this.getCustomDocs();
-    let baseDocs = [];
+    let cloudDocs = null;
 
+    // 1. Fetch directly from Supabase Cloud PostgreSQL (The Single Source of Truth for ALL devices)
     try {
-      const resp = await fetch('/api/verified-documents');
+      const resp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/verified_documents?select=*&order=Upload_Date.desc`, {
+        headers: {
+          'apikey': SUPABASE_CONFIG.anonKey,
+          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+        },
+        cache: 'no-store'
+      });
       if (resp.ok) {
         const json = await resp.json();
-        if (json && json.data && Array.isArray(json.data) && json.data.length > 0) {
-          baseDocs = json.data;
+        if (Array.isArray(json) && json.length > 0) {
+          cloudDocs = json;
+          this.dbStatus = {
+            success: true,
+            provider: 'Supabase (PostgreSQL)',
+            supabaseConfigured: true,
+            supabaseUrl: SUPABASE_CONFIG.url,
+            recordCount: json.length
+          };
         }
       }
-      // Also fetch database status
-      const statusResp = await fetch('/api/db-status');
-      if (statusResp.ok) {
-        this.dbStatus = await statusResp.json();
-      }
     } catch (e) {
-      console.warn('API load failed, using local storage or baseline seeds:', e);
+      console.warn('Direct Supabase fetch error, trying backend API:', e);
     }
 
-    if (!baseDocs || baseDocs.length === 0) {
+    // 2. Fallback to /api/verified-documents with cache-busting
+    if (!cloudDocs || cloudDocs.length === 0) {
+      try {
+        const resp = await fetch(`/api/verified-documents?_t=${Date.now()}`, { cache: 'no-store' });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json && json.data && Array.isArray(json.data) && json.data.length > 0) {
+            cloudDocs = json.data;
+          }
+        }
+      } catch (e) {
+        console.warn('API load failed:', e);
+      }
+    }
+
+    // 3. Fallback to local storage or baseline
+    if (!cloudDocs || cloudDocs.length === 0) {
       try {
         const cached = localStorage.getItem('authbridge_verified_docs_v3');
-        if (cached) { const p = JSON.parse(cached); if (Array.isArray(p) && p.length > 0) baseDocs = p; }
+        if (cached) {
+          const p = JSON.parse(cached);
+          if (Array.isArray(p) && p.length > 0) cloudDocs = p;
+        }
       } catch (e) {}
     }
 
-    if (!baseDocs || baseDocs.length === 0) {
-      baseDocs = [...verifiedDocumentsBaseline];
+    if (!cloudDocs || cloudDocs.length === 0) {
+      cloudDocs = [...verifiedDocumentsBaseline];
     }
 
-    // 1. Filter out all documents deleted by user (guarantees deleted docs NEVER come back on refresh)
-    let reconciled = baseDocs.filter(d => d && !deletedIds.has(d.Document_ID));
-
-    // 2. Merge in all user-added or modified custom documents
-    for (const customDoc of customDocs) {
-      if (!customDoc || !customDoc.Document_ID) continue;
-      if (deletedIds.has(customDoc.Document_ID)) continue;
-
-      const idx = reconciled.findIndex(d => d.Document_ID === customDoc.Document_ID || (customDoc.Document_Hash && d.Document_Hash === customDoc.Document_Hash));
-      if (idx >= 0) {
-        reconciled[idx] = { ...reconciled[idx], ...customDoc };
-      } else {
-        reconciled.unshift(customDoc);
-      }
-    }
-
-    this.verifiedDocuments = reconciled;
+    this.verifiedDocuments = cloudDocs;
     try {
-      localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(reconciled));
+      localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(cloudDocs));
     } catch (e) {}
   }
 
@@ -770,72 +815,97 @@ class VeritasApp {
   }
 
   async saveVerifiedDocumentToServer(record) {
-    // 1. Remove from deleted IDs set if re-adding
-    const deletedIds = this.getDeletedDocIds();
-    if (deletedIds.has(record.Document_ID)) {
-      deletedIds.delete(record.Document_ID);
-      this.saveDeletedDocIds(deletedIds);
-    }
+    const cleanRecord = {
+      Document_ID: String(record.Document_ID || ''),
+      Document_Type: String(record.Document_Type || 'Unknown'),
+      Extracted_ID_Number: String(record.Extracted_ID_Number || '').trim(),
+      Document_Hash: String(record.Document_Hash || '').toLowerCase().trim(),
+      Upload_Date: String(record.Upload_Date || new Date().toISOString()),
+      Admin_ID: String(record.Admin_ID || 'OFF-1042'),
+      Holder_Name: String(record.Holder_Name || 'Verified Subject').trim(),
+      Issuing_Authority: String(record.Issuing_Authority || `${record.Document_Type || 'ID'} Official Authority`).trim(),
+      Notes: String(record.Notes || 'Manually registered genuine credential').trim(),
+      Father_Name: String(record.Father_Name || '').trim(),
+      Date_Of_Birth: String(record.Date_Of_Birth || record.DOB || '').trim(),
+      Gender: String(record.Gender || '').trim(),
+      Address: String(record.Address || '').trim(),
+      Issue_Date: String(record.Issue_Date || '').trim(),
+      Validity_Date: String(record.Validity_Date || '').trim(),
+      Blood_Group: String(record.Blood_Group || '').trim(),
+      Extracted_Fields: record.Extracted_Fields || {}
+    };
 
-    // 2. Persist to customDocs so it survives any refresh or cold starts
-    const customDocs = this.getCustomDocs();
-    const cIdx = customDocs.findIndex(d => d.Document_ID === record.Document_ID || (record.Document_Hash && d.Document_Hash === record.Document_Hash));
-    if (cIdx >= 0) {
-      customDocs[cIdx] = record;
-    } else {
-      customDocs.unshift(record);
-    }
-    this.saveCustomDocs(customDocs);
-
-    // 3. Update memory state
-    const existingIdx = this.verifiedDocuments.findIndex(d => d.Document_ID === record.Document_ID || d.Document_Hash === record.Document_Hash);
+    // 1. Update memory immediately for responsive UI
+    const existingIdx = this.verifiedDocuments.findIndex(d => d.Document_ID === cleanRecord.Document_ID || d.Document_Hash === cleanRecord.Document_Hash);
     if (existingIdx >= 0) {
-      this.verifiedDocuments[existingIdx] = record;
+      this.verifiedDocuments[existingIdx] = cleanRecord;
     } else {
-      this.verifiedDocuments.unshift(record);
+      this.verifiedDocuments.unshift(cleanRecord);
     }
     try {
       localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(this.verifiedDocuments));
     } catch (e) {}
 
-    // 4. Send to server
+    // 2. Save DIRECTLY to Supabase Cloud Database (Instant Cloud Sync across all laptops)
     try {
-      const resp = await fetch('/api/verified-documents', {
+      const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/verified_documents`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_CONFIG.anonKey,
+          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates,return=representation'
+        },
+        body: JSON.stringify(cleanRecord)
+      });
+      if (supaResp.ok) {
+        console.log('✅ Document synced directly to Supabase:', cleanRecord.Document_ID);
+      } else {
+        console.warn('Supabase direct save returned:', supaResp.status, await supaResp.text());
+      }
+    } catch (err) {
+      console.warn('Direct Supabase save failed, fallback to API:', err);
+    }
+
+    // 3. Also sync to backend API in parallel
+    try {
+      fetch('/api/verified-documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(record)
-      });
-      if (resp.ok) {
-        return await resp.json();
-      }
-    } catch (e) {
-      console.warn('Server save error:', e);
-    }
-    return { success: true, record };
+        body: JSON.stringify(cleanRecord)
+      }).catch(() => {});
+    } catch (e) {}
+
+    return { success: true, record: cleanRecord };
   }
 
   async deleteVerifiedDocument(id) {
-    // 1. Add to persistent deleted IDs set (never resurrects on refresh)
-    const deletedIds = this.getDeletedDocIds();
-    deletedIds.add(id);
-    this.saveDeletedDocIds(deletedIds);
-
-    // 2. Remove from customDocs
-    const customDocs = this.getCustomDocs().filter(d => d.Document_ID !== id);
-    this.saveCustomDocs(customDocs);
-
-    // 3. Update active memory and localStorage
     this.verifiedDocuments = this.verifiedDocuments.filter(d => d.Document_ID !== id);
     try {
       localStorage.setItem('authbridge_verified_docs_v3', JSON.stringify(this.verifiedDocuments));
     } catch (e) {}
 
-    // 4. Notify server
+    // Delete DIRECTLY from Supabase Cloud Database (Sync across all laptops)
     try {
-      await fetch(`/api/verified-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
-    } catch (e) {
-      console.warn('Server delete error:', e);
+      const supaResp = await fetch(`${SUPABASE_CONFIG.url}/rest/v1/verified_documents?Document_ID=eq.${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_CONFIG.anonKey,
+          'Authorization': `Bearer ${SUPABASE_CONFIG.anonKey}`
+        }
+      });
+      if (supaResp.ok) {
+        console.log('✅ Document deleted directly from Supabase:', id);
+      }
+    } catch (err) {
+      console.warn('Direct Supabase delete error:', err);
     }
+
+    // Also notify backend API
+    try {
+      fetch(`/api/verified-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+    } catch (e) {}
+
     this.showToast(`Document ${id} removed from trusted database.`);
     this.renderScreen();
   }
@@ -1284,7 +1354,22 @@ class VeritasApp {
       return;
     }
 
-    const nextId = `DOC-VER-${String(this.verifiedDocuments.length + 1).padStart(3, '0')}`;
+    // Compute next unique ID based on max existing number (prevents collisions & overwrites)
+    let maxNum = 0;
+    this.verifiedDocuments.forEach(d => {
+      const m = (d.Document_ID || '').match(/DOC-VER-(\d+)/i);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    let nextNum = maxNum + 1;
+    let nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+    while (this.verifiedDocuments.some(d => d.Document_ID === nextId)) {
+      nextNum++;
+      nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+    }
+
     const newRecord = {
       Document_ID: nextId,
       Document_Type: docType,
