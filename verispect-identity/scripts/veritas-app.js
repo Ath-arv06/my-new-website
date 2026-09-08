@@ -814,9 +814,29 @@ class VeritasApp {
     }
   }
 
+  generateNextDocumentId() {
+    let maxNum = 0;
+    if (Array.isArray(this.verifiedDocuments)) {
+      this.verifiedDocuments.forEach(d => {
+        const m = (d.Document_ID || '').match(/DOC-VER-(\d+)/i);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+    }
+    let nextNum = maxNum + 1;
+    let nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+    while (this.verifiedDocuments && this.verifiedDocuments.some(d => d.Document_ID === nextId)) {
+      nextNum++;
+      nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+    }
+    return nextId;
+  }
+
   async saveVerifiedDocumentToServer(record) {
     const cleanRecord = {
-      Document_ID: String(record.Document_ID || ''),
+      Document_ID: String(record.Document_ID || this.generateNextDocumentId()),
       Document_Type: String(record.Document_Type || 'Unknown'),
       Extracted_ID_Number: String(record.Extracted_ID_Number || '').trim(),
       Document_Hash: String(record.Document_Hash || '').toLowerCase().trim(),
@@ -835,8 +855,8 @@ class VeritasApp {
       Extracted_Fields: record.Extracted_Fields || {}
     };
 
-    // 1. Update memory immediately for responsive UI
-    const existingIdx = this.verifiedDocuments.findIndex(d => d.Document_ID === cleanRecord.Document_ID || d.Document_Hash === cleanRecord.Document_Hash);
+    // 1. Update memory immediately for responsive UI (match strictly by Document_ID to prevent overwriting existing records)
+    const existingIdx = this.verifiedDocuments.findIndex(d => d.Document_ID === cleanRecord.Document_ID);
     if (existingIdx >= 0) {
       this.verifiedDocuments[existingIdx] = cleanRecord;
     } else {
@@ -1354,21 +1374,7 @@ class VeritasApp {
       return;
     }
 
-    // Compute next unique ID based on max existing number (prevents collisions & overwrites)
-    let maxNum = 0;
-    this.verifiedDocuments.forEach(d => {
-      const m = (d.Document_ID || '').match(/DOC-VER-(\d+)/i);
-      if (m) {
-        const n = parseInt(m[1], 10);
-        if (n > maxNum) maxNum = n;
-      }
-    });
-    let nextNum = maxNum + 1;
-    let nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
-    while (this.verifiedDocuments.some(d => d.Document_ID === nextId)) {
-      nextNum++;
-      nextId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
-    }
+    const nextId = this.generateNextDocumentId();
 
     const newRecord = {
       Document_ID: nextId,
@@ -5798,78 +5804,218 @@ class VeritasApp {
     this.renderScreen();
   }
 
-  async handleRefUploadFile(e) {
-    if (!e.target.files || !e.target.files[0]) return;
-    const file = e.target.files[0];
-    const hash = await this.computeFileSha256(file);
-    const reader = new FileReader();
+  async handleRefDropFiles(e) {
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await this.processRefUploadedFiles(Array.from(e.dataTransfer.files));
+    }
+  }
 
-    reader.onload = async (ev) => {
-      const dataUrl = ev.target.result;
-      let detectedType = 'PAN';
-      let extractedId = '';
-      let holderName = '';
-      let fatherName = '';
-      let dob = '';
-      let issueDate = '';
-      let validityDate = '';
-      let address = '';
-      let issuingAuthority = '';
+  async handleRefUploadFiles(e) {
+    if (e.target.files && e.target.files.length > 0) {
+      await this.processRefUploadedFiles(Array.from(e.target.files));
+      e.target.value = '';
+    }
+  }
+
+  async handleRefUploadFile(e) {
+    return this.handleRefUploadFiles(e);
+  }
+
+  async processRefUploadedFiles(files) {
+    if (!files || files.length === 0) return;
+
+    if (files.length === 1) {
+      // Single file workflow: show review card for manual validation / tweaking
+      const file = files[0];
+      const hash = await this.computeFileSha256(file);
+      const reader = new FileReader();
+
+      reader.onload = async (ev) => {
+        const dataUrl = ev.target.result;
+        let detectedType = 'PAN';
+        let extractedId = '';
+        let holderName = '';
+        let fatherName = '';
+        let dob = '';
+        let issueDate = '';
+        let validityDate = '';
+        let address = '';
+        let issuingAuthority = '';
+
+        try {
+          const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
+          if (cvEngine) {
+            const res = await cvEngine.processDocument(dataUrl, 'PAN', file.name);
+            if (res) {
+              if (res.detectedDocType) {
+                let dt = res.detectedDocType;
+                if (dt.includes('Aadhaar')) detectedType = 'Aadhaar';
+                else if (dt.includes('Driv') || dt.includes('Licen')) detectedType = 'DL';
+                else if (dt.includes('Pass')) detectedType = 'Passport';
+                else if (dt.includes('Voter')) detectedType = 'VoterID';
+                else if (dt.includes('PAN')) detectedType = 'PAN';
+                else detectedType = dt;
+              }
+              if (res.extractedFields && res.extractedFields.length) {
+                const findVal = (...keys) => {
+                  const f = res.extractedFields.find(item => keys.some(k => item.name.toLowerCase().includes(k.toLowerCase())));
+                  return f && f.value && !f.value.includes('Not detected') ? f.value.trim() : '';
+                };
+
+                extractedId = findVal('number', 'uid', 'epic', 'licence', 'pan');
+                holderName = findVal('holder name', 'full name', 'name');
+                fatherName = findVal('father', 'guardian', 'relative', 'husband');
+                dob = findVal('birth', 'dob');
+                issueDate = findVal('issue');
+                validityDate = findVal('validity', 'expiry');
+                address = findVal('address', 'region');
+                issuingAuthority = findVal('authority') || `${detectedType} Official Authority`;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Auto-extraction error for reference doc:', err);
+        }
+
+        if (!holderName) {
+          const cleanBase = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
+          if (cleanBase.length > 2) holderName = cleanBase.toUpperCase();
+        }
+
+        this.refUploadPending = {
+          dataUrl,
+          fileName: file.name,
+          hash,
+          docType: detectedType,
+          extractedId,
+          holderName,
+          fatherName,
+          dob,
+          issueDate,
+          validityDate,
+          address,
+          issuingAuthority: issuingAuthority || `${detectedType} Official Authority`,
+          adminId: 'OFF-1042',
+          notes: `Genuine baseline uploaded via Database References on ${new Date().toLocaleDateString()}`
+        };
+
+        this.renderScreen();
+        this.showToast(`Genuine document "${file.name}" scanned. Review demographic fields and click "Save as Genuine Reference".`);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // MULTIPLE FILES BATCH UPLOAD WORKFLOW:
+    this.refBatchUploading = true;
+    this.refBatchProgress = { current: 0, total: files.length, status: `Starting batch upload of ${files.length} authentic files...` };
+    this.renderScreen();
+
+    let savedCount = 0;
+    const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      this.refBatchProgress = {
+        current: i + 1,
+        total: files.length,
+        status: `Processing ${i + 1}/${files.length}: ${file.name}`
+      };
+      this.renderScreen();
 
       try {
-        const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
-        const res = await cvEngine.processDocument(dataUrl, 'PAN', file.name);
-        if (res) {
-          if (res.detectedDocType) {
-            let dt = res.detectedDocType;
-            if (dt.includes('Aadhaar')) detectedType = 'Aadhaar';
-            else if (dt.includes('Driv') || dt.includes('Licen')) detectedType = 'DL';
-            else if (dt.includes('Pass')) detectedType = 'Passport';
-            else if (dt.includes('Voter')) detectedType = 'VoterID';
-            else if (dt.includes('PAN')) detectedType = 'PAN';
-            else detectedType = dt;
-          }
-          if (res.extractedFields && res.extractedFields.length) {
-            const findVal = (...keys) => {
-              const f = res.extractedFields.find(item => keys.some(k => item.name.toLowerCase().includes(k.toLowerCase())));
-              return f && f.value && !f.value.includes('Not detected') ? f.value.trim() : '';
-            };
+        const hash = await this.computeFileSha256(file);
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target.result);
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
 
-            extractedId = findVal('number', 'uid', 'epic', 'licence', 'pan');
-            holderName = findVal('holder name', 'full name', 'name');
-            fatherName = findVal('father', 'guardian', 'relative', 'husband');
-            dob = findVal('birth', 'dob');
-            issueDate = findVal('issue');
-            validityDate = findVal('validity', 'expiry');
-            address = findVal('address', 'region');
-            issuingAuthority = findVal('authority') || `${detectedType} Official Authority`;
+        let detectedType = 'PAN';
+        let extractedId = '';
+        let holderName = '';
+        let fatherName = '';
+        let dob = '';
+        let issueDate = '';
+        let validityDate = '';
+        let address = '';
+        let issuingAuthority = '';
+
+        if (cvEngine && dataUrl) {
+          try {
+            const res = await cvEngine.processDocument(dataUrl, 'PAN', file.name);
+            if (res) {
+              if (res.detectedDocType) {
+                let dt = res.detectedDocType;
+                if (dt.includes('Aadhaar')) detectedType = 'Aadhaar';
+                else if (dt.includes('Driv') || dt.includes('Licen')) detectedType = 'DL';
+                else if (dt.includes('Pass')) detectedType = 'Passport';
+                else if (dt.includes('Voter')) detectedType = 'VoterID';
+                else if (dt.includes('PAN')) detectedType = 'PAN';
+                else detectedType = dt;
+              }
+              if (res.extractedFields && res.extractedFields.length) {
+                const findVal = (...keys) => {
+                  const f = res.extractedFields.find(item => keys.some(k => item.name.toLowerCase().includes(k.toLowerCase())));
+                  return f && f.value && !f.value.includes('Not detected') ? f.value.trim() : '';
+                };
+                extractedId = findVal('number', 'uid', 'epic', 'licence', 'pan');
+                holderName = findVal('holder name', 'full name', 'name');
+                fatherName = findVal('father', 'guardian', 'relative', 'husband');
+                dob = findVal('birth', 'dob');
+                issueDate = findVal('issue');
+                validityDate = findVal('validity', 'expiry');
+                address = findVal('address', 'region');
+                issuingAuthority = findVal('authority');
+              }
+            }
+          } catch (err) {
+            console.warn('OCR error for batch file:', file.name, err);
           }
         }
-      } catch (err) {
-        console.warn('Auto-extraction error for reference doc:', err);
+
+        const cleanBase = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').trim();
+        if (!holderName) {
+          holderName = cleanBase.length > 2 ? cleanBase.toUpperCase() : 'Verified Subject';
+        }
+        if (!issuingAuthority) {
+          issuingAuthority = `${detectedType} Official Authority`;
+        }
+
+        const nextId = this.generateNextDocumentId();
+        if (!extractedId) {
+          extractedId = `GEN-${detectedType.substring(0, 3).toUpperCase()}-${hash.substring(0, 6).toUpperCase()}`;
+        }
+
+        const newRecord = {
+          Document_ID: nextId,
+          Document_Type: detectedType,
+          Extracted_ID_Number: extractedId,
+          Document_Hash: hash.toLowerCase(),
+          Upload_Date: new Date().toISOString(),
+          Admin_ID: 'OFF-1042',
+          Holder_Name: holderName,
+          Father_Name: fatherName,
+          Date_Of_Birth: dob,
+          Issue_Date: issueDate,
+          Validity_Date: validityDate,
+          Address: address,
+          Issuing_Authority: issuingAuthority,
+          Notes: `Batch genuine document intake (${file.name}) on ${new Date().toLocaleDateString()}`
+        };
+
+        await this.saveVerifiedDocumentToServer(newRecord);
+        savedCount++;
+      } catch (fileErr) {
+        console.error('Error processing batch file:', file.name, fileErr);
       }
+    }
 
-      this.refUploadPending = {
-        dataUrl,
-        fileName: file.name,
-        hash,
-        docType: detectedType,
-        extractedId,
-        holderName,
-        fatherName,
-        dob,
-        issueDate,
-        validityDate,
-        address,
-        issuingAuthority: issuingAuthority || `${detectedType} Official Authority`,
-        adminId: 'OFF-1042',
-        notes: `Genuine baseline uploaded via Database References on ${new Date().toLocaleDateString()}`
-      };
-
-      this.renderScreen();
-      this.showToast(`Genuine document "${file.name}" scanned. Review demographic fields and click "Save as Genuine Reference".`);
-    };
-    reader.readAsDataURL(file);
+    this.refBatchUploading = false;
+    this.refBatchProgress = null;
+    this.showToast(`Batch complete: successfully stored ${savedCount} authentic document(s) in Database References!`);
+    this.renderScreen();
   }
 
   async savePendingReference() {
@@ -5892,7 +6038,7 @@ class VeritasApp {
       return;
     }
 
-    const nextId = `DOC-VER-${String(this.verifiedDocuments.length + 1).padStart(3, '0')}`;
+    const nextId = this.generateNextDocumentId();
     const newRecord = {
       Document_ID: nextId,
       Document_Type: docType,
@@ -6100,7 +6246,7 @@ class VeritasApp {
     }
 
     if (sample) {
-      const nextId = `DOC-VER-${String(this.verifiedDocuments.length + 1).padStart(3, '0')}`;
+      const nextId = this.generateNextDocumentId();
       const record = {
         Document_ID: nextId,
         Document_Type: sample.Document_Type,
@@ -6523,16 +6669,49 @@ class VeritasApp {
           </div>
         </div>
 
-        <!-- File Upload Dropzone for Genuine Data -->
-        <div class="dropzone" onclick="document.getElementById('refDocFileInput').click()" style="padding: 24px; text-align: center; border: 2px dashed var(--brand-accent); border-radius: 10px; cursor: pointer; background: #FFFFFF;">
-          <input type="file" id="refDocFileInput" accept="image/*,.pdf" style="display:none;" onchange="app.handleRefUploadFile(event)">
-          <i data-lucide="upload-cloud" style="width: 36px; height: 36px; color: var(--brand-accent); margin-bottom: 6px;"></i>
-          <div style="font-size: 14px; font-weight: 700; color: var(--text-heading);">Upload Genuine Document File</div>
-          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Drag &amp; drop an authentic ID (JPEG, PNG, PDF) or click to browse</div>
-          <small style="display: inline-block; margin-top: 6px; padding: 2px 8px; background: #EFF6FF; color: var(--brand-accent); border-radius: 4px; font-weight: 600;">
-            Auto-extracts ID Number &bull; Computes exact SHA-256 Hash &bull; Registers to Verified_Documents
-          </small>
+        <!-- File Upload Dropzone for Genuine Data (Supports Single or Multiple Authentic IDs) -->
+        <div class="dropzone" onclick="document.getElementById('refDocFileInput').click()" 
+             ondragover="event.preventDefault(); event.stopPropagation(); this.style.borderColor='#10B981'; this.style.background='#F0FDF4';" 
+             ondragleave="event.preventDefault(); event.stopPropagation(); this.style.borderColor='var(--brand-accent)'; this.style.background='#FFFFFF';" 
+             ondrop="event.preventDefault(); event.stopPropagation(); this.style.borderColor='var(--brand-accent)'; this.style.background='#FFFFFF'; app.handleRefDropFiles(event);" 
+             style="padding: 26px; text-align: center; border: 2px dashed var(--brand-accent); border-radius: 10px; cursor: pointer; background: #FFFFFF; transition: all 0.2s ease;">
+          <input type="file" id="refDocFileInput" accept="image/*,.pdf" multiple style="display:none;" onchange="app.handleRefUploadFiles(event)">
+          <i data-lucide="upload-cloud" style="width: 38px; height: 38px; color: var(--brand-accent); margin-bottom: 6px;"></i>
+          <div style="font-size: 15px; font-weight: 700; color: var(--text-heading);">Upload Genuine Document File(s) to Database</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Drag &amp; drop authentic IDs or click to browse &bull; Select single or multiple files (JPEG, PNG, PDF)</div>
+          <div style="display: flex; justify-content: center; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+            <small style="padding: 3px 10px; background: #EFF6FF; color: var(--brand-accent); border-radius: 4px; font-weight: 600;">
+              ✨ Multiple Uploads Supported
+            </small>
+            <small style="padding: 3px 10px; background: #ECFDF5; color: #059669; border-radius: 4px; font-weight: 600;">
+              ⚡ Auto-extracts Details &amp; Generates Unique IDs
+            </small>
+            <small style="padding: 3px 10px; background: #F3E8FF; color: #7E22CE; border-radius: 4px; font-weight: 600;">
+              🔒 Instant Supabase Cloud Sync
+            </small>
+          </div>
         </div>
+
+        <!-- Batch Upload Live Progress Bar -->
+        ${this.refBatchUploading && this.refBatchProgress ? `
+          <div style="margin-top: 14px; padding: 16px 20px; background: #FFFFFF; border: 1.5px solid var(--brand-accent); border-radius: 10px; box-shadow: 0 4px 12px rgba(37,99,235,0.12);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div style="font-weight: 700; font-size: 13px; color: var(--text-heading); display: flex; align-items: center; gap: 8px;">
+                <i data-lucide="loader" style="width: 16px; height: 16px; color: var(--brand-accent); animation: spin 1s linear infinite;"></i>
+                Batch Uploading Genuine Documents...
+              </div>
+              <span style="font-size: 12px; font-weight: 700; color: var(--brand-accent);">
+                ${this.refBatchProgress.current} / ${this.refBatchProgress.total} Files (${Math.round((this.refBatchProgress.current / this.refBatchProgress.total) * 100)}%)
+              </span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 8px;">
+              ${this.refBatchProgress.status}
+            </div>
+            <div style="width: 100%; height: 8px; background: #E2E8F0; border-radius: 4px; overflow: hidden;">
+              <div style="width: ${(this.refBatchProgress.current / this.refBatchProgress.total) * 100}%; height: 100%; background: var(--brand-accent); transition: width 0.3s ease;"></div>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Pending Upload Review Card -->
         ${this.refUploadPending ? `
@@ -6670,7 +6849,7 @@ class VeritasApp {
             </div>
 
             <div style="position: relative; min-width: 200px;">
-              <input type="text" placeholder="Search 100 records..." value="${this.adminSearchQuery || ''}" 
+              <input type="text" placeholder="Search ${totalDocs} records..." value="${this.adminSearchQuery || ''}" 
                 oninput="app.adminSearchQuery = this.value; app.dbRefPage=1; app.renderScreen();"
                 style="width: 100%; padding: 6px 10px 6px 30px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px;">
               <i data-lucide="search" style="position: absolute; left: 10px; top: 8px; width: 14px; height: 14px; color: var(--text-muted);"></i>

@@ -578,12 +578,27 @@ const server = http.createServer(async (req, res) => {
         docHash = crypto.createHash('sha256').update(`${documentType}-${body.Extracted_ID_Number}-${Date.now()}`).digest('hex');
       }
 
-      const nextNum = docs.length + 1;
-      const documentId = body.Document_ID || `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+      let documentId = body.Document_ID;
+      if (!documentId) {
+        let maxNum = 0;
+        docs.forEach(d => {
+          const m = (d.Document_ID || '').match(/DOC-VER-(\d+)/i);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (n > maxNum) maxNum = n;
+          }
+        });
+        let nextNum = maxNum + 1;
+        documentId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+        while (docs.some(d => d.Document_ID === documentId)) {
+          nextNum++;
+          documentId = `DOC-VER-${String(nextNum).padStart(3, '0')}`;
+        }
+      }
 
-      // Check for existing record by Document_ID or Document_Hash
+      // Check for existing record strictly by Document_ID
       const cleanHash = (docHash || '').toLowerCase().trim();
-      const existingIdx = docs.findIndex(d => d.Document_ID === documentId || (cleanHash && d.Document_Hash === cleanHash));
+      const existingIdx = docs.findIndex(d => d.Document_ID === documentId);
       const existingRecord = existingIdx >= 0 ? docs[existingIdx] : {};
 
       const newRecord = {
