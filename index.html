@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AuthBridge — Identity Assurance &amp; Document Verification</title>
+  <meta name="description" content="AuthBridge — AI-assisted identity and document verification platform with explainable risk assessment, forensic tamper detection, and tamper-evident cryptographic anchoring.">
+  
+  <!-- Inter & JetBrains Mono Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Light Theme Enterprise Stylesheet -->
+  <link rel="stylesheet" href="styles/veritas.css?v=authbridge_scanner_v1">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+  <div class="app-shell">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="appSidebar">
+      <div class="brand-lockup">
+        <div class="brand-mark">
+          <i data-lucide="shield-check" style="width: 21px; height: 21px;"></i>
+        </div>
+        <div>
+          <strong>AuthBridge</strong>
+          <span>Identity assurance</span>
+        </div>
+      </div>
+
+      <div class="environment">
+        <span class="live-dot"></span>
+        <span>Secure operations environment</span>
+      </div>
+
+      <nav>
+        <div class="nav-group">
+          <p>Operations</p>
+          <button class="nav-item active" data-screen="Dashboard">
+            <i data-lucide="layout-dashboard" style="width: 17px; height: 17px;"></i>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-item" data-screen="New Verification">
+            <i data-lucide="plus" style="width: 17px; height: 17px;"></i>
+            <span>New Verification</span>
+          </button>
+          <button class="nav-item" data-screen="Verification Queue">
+            <i data-lucide="clipboard-check" style="width: 17px; height: 17px;"></i>
+            <span>Verification Queue</span>
+            <b class="nav-count">3</b>
+          </button>
+          <button class="nav-item" data-screen="Cases">
+            <i data-lucide="file-search" style="width: 17px; height: 17px;"></i>
+            <span>Cases</span>
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <p>Assurance</p>
+          <button class="nav-item" data-screen="Verification History">
+            <i data-lucide="clock-3" style="width: 17px; height: 17px;"></i>
+            <span>Verification History</span>
+          </button>
+          <button class="nav-item" data-screen="Integrity Ledger">
+            <i data-lucide="fingerprint" style="width: 17px; height: 17px;"></i>
+            <span>Integrity Ledger</span>
+          </button>
+          <button class="nav-item" data-screen="Audit Logs">
+            <i data-lucide="activity" style="width: 17px; height: 17px;"></i>
+            <span>Audit Logs</span>
+          </button>
+          <button class="nav-item" data-screen="Reports">
+            <i data-lucide="bar-chart-3" style="width: 17px; height: 17px;"></i>
+            <span>Reports</span>
+          </button>
+        </div>
+
+        <div class="nav-group">
+          <p>System</p>
+          <button class="nav-item" data-screen="Database References">
+            <i data-lucide="database" style="width: 17px; height: 17px;"></i>
+            <span>Database References</span>
+            <b class="nav-count" id="dbRefCountBadge" style="background: var(--brand-accent); color: white;">12</b>
+          </button>
+          <button class="nav-item" data-screen="Administration">
+            <i data-lucide="settings" style="width: 17px; height: 17px;"></i>
+            <span>Administration</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-avatar">OF</div>
+        <div style="flex: 1;">
+          <strong>Verification Officer</strong>
+          <span>OFF-1042</span>
+        </div>
+        <button class="icon-button" style="border: none; padding: 4px;">
+          <i data-lucide="chevron-down" style="width: 15px; height: 15px;"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Topbar -->
+      <header class="topbar">
+        <div class="breadcrumb" id="topbarBreadcrumb">
+          <span>AuthBridge</span>
+          <span style="font-size: 11px;">&rarr;</span>
+          <strong>Dashboard</strong>
+        </div>
+
+        <div class="top-actions">
+          <button class="button primary btn-sm" id="topbarAddVerifiedDocBtn" onclick="app.openAddVerifiedDocModal()" style="display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 12px; font-weight: 600;">
+            <i data-lucide="shield-plus" style="width: 15px; height: 15px;"></i>
+            <span>Add Verified Document</span>
+          </button>
+
+          <div class="secure-status">
+            <i data-lucide="lock-keyhole" style="width: 14px; height: 14px;"></i>
+            <span>Session secured</span>
+          </div>
+
+          <button class="icon-button notification" id="topbarNotificationBtn" title="Notifications">
+            <i data-lucide="bell" style="width: 17px; height: 17px;"></i>
+            <i></i>
+          </button>
+
+          <!-- Notification Dropdown -->
+          <div class="dropdown-menu" id="notifDropdownMenu">
+            <div class="dropdown-header">
+              <span>Operational Alerts</span>
+              <button class="text-button" style="font-size: 10px;" onclick="document.querySelector('.notification i').style.display='none'; app.showToast('All notifications marked as read.');">Mark read</button>
+            </div>
+            <div class="dropdown-item" onclick="app.openCase(app.cases[0])">
+              <i data-lucide="alert-triangle" style="width: 14px; height: 14px; color: var(--danger);"></i>
+              <div>
+                <strong>AUTH-2026-00421 Flagged</strong>
+                <div style="font-size: 11px; color: var(--text-muted);">QR payload anomaly detected</div>
+              </div>
+            </div>
+            <div class="dropdown-item" onclick="app.screen='Integrity Ledger'; app.renderScreen();">
+              <i data-lucide="fingerprint" style="width: 14px; height: 14px; color: var(--brand-accent);"></i>
+              <div>
+                <strong>Ledger Block #184293</strong>
+                <div style="font-size: 11px; color: var(--text-muted);">Anchor committed to EVM</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="top-avatar" id="topbarAvatarBtn" title="Officer Profile">OF</div>
+
+          <!-- Profile Dropdown -->
+          <div class="dropdown-menu" id="profileDropdownMenu" style="width: 220px;">
+            <div class="dropdown-header">
+              <span>Active Officer</span>
+            </div>
+            <div style="padding: 10px; font-size: 12px; border-bottom: 1px solid var(--border-subtle);">
+              <strong>Verification Officer</strong>
+              <div style="font-family: var(--font-mono); color: var(--brand-accent);">OFF-1042</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Role: Senior Compliance Lead</div>
+            </div>
+            <div class="dropdown-item" onclick="app.openAddVerifiedDocModal();">
+              <i data-lucide="shield-plus" style="width: 14px; height: 14px; color: var(--brand-accent);"></i>
+              <span>Add Verified Document</span>
+            </div>
+            <div class="dropdown-item" onclick="app.screen='Administration'; app.renderScreen();">
+              <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
+              <span>System Settings</span>
+            </div>
+            <div class="dropdown-item" onclick="app.showToast('Active session verified under TLS 1.3.');">
+              <i data-lucide="shield-check" style="width: 14px; height: 14px; color: var(--pass);"></i>
+              <span>Security Status</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Dynamic Screen Container -->
+      <div id="screenContainer">
+        <!-- Rendered reactively by veritas-app.js -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Add Verified Document Modal (Admin) -->
+  <div class="modal-backdrop" id="addVerifiedDocModalBackdrop" style="display: none;" onclick="if(event.target === this) app.closeAddVerifiedDocModal();">
+    <div class="modal-dialog" style="max-width: 620px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(30, 58, 138, 0.1); display: flex; align-items: center; justify-content: center; color: var(--brand-accent);">
+            <i data-lucide="shield-plus" style="width: 18px; height: 18px;"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--text-heading);">Register Verified Document</h3>
+            <span style="font-size: 11px; color: var(--text-muted);">Add new trusted genuine record to the Verified_Documents baseline</span>
+          </div>
+        </div>
+        <button class="icon-button btn-close-modal" onclick="app.closeAddVerifiedDocModal()">
+          <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div style="margin-bottom: 14px;">
+          <label class="field-label" style="margin-bottom: 4px;">Document Image (Auto-Extracts ID &amp; Computes Cryptographic Hash)</label>
+          <div class="dropzone" id="adminModalDropzone" onclick="document.getElementById('adminDocFileInput').click()" style="padding: 18px; text-align: center; border: 2px dashed var(--border); border-radius: 8px; cursor: pointer; background: #F8FAFC;">
+            <input type="file" id="adminDocFileInput" accept="image/*,.pdf" style="display:none;" onchange="app.handleAdminDocFileUpload(event)">
+            <div id="adminModalPreviewArea">
+              <i data-lucide="upload" style="width: 24px; height: 24px; color: var(--brand-accent); margin-bottom: 4px;"></i>
+              <div style="font-size: 12px; font-weight: 600; color: var(--text-heading);">Click to browse document file or drop image</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Computes exact SHA-256 hash &amp; extracts ID number</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Document Type <span style="color:red;">*</span></label>
+            <select id="adminDocTypeSelect" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+              <option value="PAN">PAN (Permanent Account Number)</option>
+              <option value="Aadhaar">Aadhaar</option>
+              <option value="DL">DL (Driving License)</option>
+              <option value="Passport">Passport</option>
+              <option value="VoterID">Voter ID (EPIC)</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Extracted ID Number <span style="color:red;">*</span></label>
+            <input type="text" id="adminExtractedIdInput" placeholder="e.g. ABCDE1234F" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: var(--font-mono);" required>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label class="field-label" style="font-size: 11px;">Cryptographic Document Hash (SHA-256) <span style="color:red;">*</span></label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="adminDocHashInput" placeholder="Calculated automatically on file upload" style="flex: 1; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 11px; font-family: var(--font-mono); background: #F1F5F9;" readonly>
+            <button type="button" class="button secondary btn-sm" onclick="app.generateRandomAdminHash()" style="font-size: 11px;">Generate</button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Admin ID (Auditing Metadata)</label>
+            <input type="text" id="adminAdminIdInput" value="OFF-1042" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Subject / Holder Name <span style="color:red;">*</span></label>
+            <input type="text" id="adminHolderNameInput" placeholder="e.g. Rajesh Sharma" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Father / Relative Name</label>
+            <input type="text" id="adminFatherNameInput" placeholder="e.g. Shiv Kumar Sharma" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Date of Birth (DOB)</label>
+            <input type="text" id="adminDobInput" placeholder="e.g. 15/08/1990" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Date of First Issue</label>
+            <input type="text" id="adminIssueDateInput" placeholder="e.g. 10/01/2020" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Validity / Expiry Date (NT/TR)</label>
+            <input type="text" id="adminValidityDateInput" placeholder="e.g. 09/01/2040" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Issuing Authority</label>
+            <input type="text" id="adminIssuingAuthorityInput" placeholder="e.g. INCOME TAX DEPARTMENT / Transport Dept" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Registered Address / State</label>
+            <input type="text" id="adminAddressInput" placeholder="e.g. 124 Model Town, Lucknow, Uttar Pradesh" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div>
+          <label class="field-label" style="font-size: 11px;">Auditing Notes / Description</label>
+          <input type="text" id="adminNotesInput" placeholder="e.g. Baseline certified document from state registrar" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;">
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="button secondary btn-sm" onclick="app.closeAddVerifiedDocModal()">Cancel</button>
+        <button type="button" class="button primary btn-sm" onclick="app.submitNewVerifiedDocModal()">
+          <i data-lucide="check" style="width: 14px; height: 14px;"></i> Register Genuine Document
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Verified Document Modal (Admin) -->
+  <div class="modal-backdrop" id="editVerifiedDocModalBackdrop" style="display: none;" onclick="if(event.target === this) app.closeEditVerifiedDocModal();">
+    <div class="modal-dialog" style="max-width: 650px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(5, 150, 105, 0.1); display: flex; align-items: center; justify-content: center; color: #059669;">
+            <i data-lucide="edit" style="width: 18px; height: 18px;"></i>
+          </div>
+          <div>
+            <h3 style="font-size: 16px; font-weight: 700; margin: 0; color: var(--text-heading);">Edit Verified Database Record</h3>
+            <span style="font-size: 11px; color: var(--text-muted);" id="editModalSubtitle">Update canonical verified data used for intake hydration</span>
+          </div>
+        </div>
+        <button class="icon-button btn-close-modal" onclick="app.closeEditVerifiedDocModal()">
+          <i data-lucide="x" style="width: 16px; height: 16px;"></i>
+        </button>
+      </div>
+
+      <div class="modal-body" style="padding: 16px 20px;">
+        <input type="hidden" id="editDocIdInput">
+        <input type="hidden" id="editDocHashInput">
+
+        <div style="margin-bottom: 12px; padding: 10px 14px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase;">Record Identifier:</span>
+            <strong style="font-family: var(--font-mono); font-size: 13px; color: #065F46; margin-left: 6px;" id="editModalDocIdBadge">DOC-VER-001</strong>
+          </div>
+          <span style="font-size: 11px; font-family: var(--font-mono); color: #475569;" id="editModalHashPreview">Hash: 094f14...</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Document Type <span style="color:red;">*</span></label>
+            <select id="editDocTypeSelect" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+              <option value="PAN">PAN (Permanent Account Number)</option>
+              <option value="Aadhaar">Aadhaar</option>
+              <option value="DL">DL (Driving License)</option>
+              <option value="Passport">Passport</option>
+              <option value="VoterID">Voter ID (EPIC)</option>
+              <option value="Unknown">Unknown</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Extracted ID Number <span style="color:red;">*</span></label>
+            <input type="text" id="editExtractedIdInput" placeholder="e.g. ABCDE1234F" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: var(--font-mono); font-weight: 700;" required>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Subject / Cardholder Name <span style="color:red;">*</span></label>
+            <input type="text" id="editHolderNameInput" placeholder="e.g. Rajesh Sharma" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-weight: 600;" required>
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Father / Relative Name</label>
+            <input type="text" id="editFatherNameInput" placeholder="e.g. Shiv Kumar Sharma" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Date of Birth (DOB)</label>
+            <input type="text" id="editDobInput" placeholder="e.g. 15/08/1990" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Date of First Issue</label>
+            <input type="text" id="editIssueDateInput" placeholder="e.g. 10/01/2020" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <label class="field-label" style="font-size: 11px;">Validity / Expiry Date (NT/TR)</label>
+            <input type="text" id="editValidityDateInput" placeholder="e.g. 09/01/2040" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+          <div>
+            <label class="field-label" style="font-size: 11px;">Issuing Authority</label>
+            <input type="text" id="editIssuingAuthorityInput" placeholder="e.g. INCOME TAX DEPARTMENT / Transport Dept" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label class="field-label" style="font-size: 11px;">Registered Address / Region</label>
+          <input type="text" id="editAddressInput" placeholder="e.g. 124 Model Town, Lucknow, Uttar Pradesh" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;">
+        </div>
+
+        <div>
+          <label class="field-label" style="font-size: 11px;">Auditing Notes / Description</label>
+          <input type="text" id="editNotesInput" placeholder="e.g. Manually verified genuine credential" style="width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;">
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+        <button type="button" class="button secondary btn-sm" onclick="app.closeEditVerifiedDocModal()">Cancel</button>
+        <button type="button" class="button primary btn-sm" onclick="app.submitEditVerifiedDocModal()" style="background: #059669; border-color: #059669;">
+          <i data-lucide="check" style="width: 14px; height: 14px;"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <span style="font-size: 11px; color: var(--text-muted);">Auto-computes SHA-256 hashes &amp; generates unique Document IDs</span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="button secondary btn-sm" onclick="app.closeBulkImportModal()">Cancel</button>
+          <button type="button" class="button primary btn-sm" id="btnSubmitBulkImport" onclick="app.submitBulkImport()" style="background: #059669; border-color: #059669;" disabled>
+            <i data-lucide="check-check" style="width: 14px; height: 14px;"></i> Save Records to Database
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tesseract.js — Optical Character Recognition Engine for Client-Side Text Extraction -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <!-- jsQR — Client-Side QR Code & Secure Envelope Extraction Engine -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <!-- OpenCV.js — Computer Vision Engine for Document Boundary Detection, Rectification & Zone Segmentation -->
+  <script async src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.9.0-release.2/dist/opencv.js"></script>
+
+  <!-- AuthBridge OpenCV Document Detection & Intelligent Extraction Engine -->
+  <script src="scripts/opencv-doc-detector.js?v=authbridge_cv"></script>
+
+  <!-- App Script -->
+  <script src="scripts/veritas-app.js?v=authbridge_clean_user_v3"></script>
+</body>
+</html>

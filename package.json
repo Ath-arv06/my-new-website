@@ -1,0 +1,10 @@
+{
+  "name": "authbridge-identity",
+  "version": "1.0.0",
+  "description": "AuthBridge — Identity Assurance & Document Verification Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}

@@ -1,0 +1,7 @@
+*.zip
+.pytest_cache/
+document-verifier/
+node_modules/
+.git/
+.vscode/
+.idea/
