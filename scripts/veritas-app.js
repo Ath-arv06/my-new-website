@@ -1467,16 +1467,14 @@ class VeritasApp {
     this.stopAutoDetection();
     let consecutiveHits = 0;
     let autoTriggered = false;
-    const requiredHits = 5; // ~1.0 - 1.2s of steady hold with document confirmed inside reticle
-
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 100;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const requiredHits = 5; // ~1.0s of steady hold with document corners confirmed
+    this.lockedCorners = null;
+    let prevCorners = null;
 
     this.scannerDetectInterval = setInterval(() => {
       if (autoTriggered) return;
       const videoEl = document.getElementById('scannerVideoFeed');
+      const edgeCanvas = document.getElementById('scannerEdgeOverlayCanvas');
       const cardBox = document.getElementById('scannerCardBox');
       const autoBadge = document.getElementById('scannerAutoBadge');
       const autoBadgeText = document.getElementById('scannerAutoBadgeText');
@@ -1485,127 +1483,166 @@ class VeritasApp {
 
       if (!videoEl || videoEl.readyState < 2 || videoEl.videoWidth === 0) return;
 
+      const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
+      if (!cvEngine) return;
+
       try {
         const vw = videoEl.videoWidth;
         const vh = videoEl.videoHeight;
-        // Sample the central card bounding reticle
-        const sx = Math.floor(vw * 0.15);
-        const sy = Math.floor(vh * 0.2);
-        const sw = Math.floor(vw * 0.7);
-        const sh = Math.floor(vh * 0.6);
+        const clientW = videoEl.clientWidth || 640;
+        const clientH = videoEl.clientHeight || 400;
 
-        ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, 160, 100);
-        const imgData = ctx.getImageData(0, 0, 160, 100).data;
-
-        // Convert to grayscale 1D array for fast gradient & pattern analysis
-        const W = 160;
-        const H = 100;
-        const gray = new Float32Array(W * H);
-        let totalLuma = 0;
-        for (let i = 0; i < W * H; i++) {
-          const idx = i * 4;
-          const luma = imgData[idx] * 0.299 + imgData[idx + 1] * 0.587 + imgData[idx + 2] * 0.114;
-          gray[i] = luma;
-          totalLuma += luma;
-        }
-        const avgLuma = totalLuma / (W * H);
-
-        // Overall luminance variance
-        let varianceSum = 0;
-        for (let i = 0; i < W * H; i++) {
-          const diff = gray[i] - avgLuma;
-          varianceSum += diff * diff;
-        }
-        const variance = varianceSum / (W * H);
-
-        // Compute Sobel edge density (identifies sharp printed text, card borders & graphics)
-        // Natural backgrounds (walls, skin, faces, empty room) have low edge density (< 5%).
-        // Real printed documents with text/emblems have high edge density (typically > 8.5%).
-        let strongEdges = 0;
-        let interiorPixels = 0;
-        for (let y = 1; y < H - 1; y++) {
-          const rowOffset = y * W;
-          const prevRow = (y - 1) * W;
-          const nextRow = (y + 1) * W;
-          for (let x = 1; x < W - 1; x++) {
-            interiorPixels++;
-            // Horizontal gradient dx
-            const dx = Math.abs(gray[rowOffset + x + 1] - gray[rowOffset + x - 1]);
-            // Vertical gradient dy
-            const dy = Math.abs(gray[nextRow + x] - gray[prevRow + x]);
-            if (dx + dy > 40) {
-              strongEdges++;
-            }
+        if (edgeCanvas) {
+          if (edgeCanvas.width !== clientW || edgeCanvas.height !== clientH) {
+            edgeCanvas.width = clientW;
+            edgeCanvas.height = clientH;
           }
         }
-        const edgeDensity = strongEdges / (interiorPixels || 1);
+        const edgeCtx = edgeCanvas ? edgeCanvas.getContext('2d') : null;
 
-        // Scanline text pattern density:
-        // Printed text on an ID card causes repeated high-frequency dark-to-light oscillations
-        // across horizontal text lines. Walls/faces produce almost zero periodic transitions.
-        const scanlineRows = [22, 28, 36, 44, 52, 60, 68, 76, 84];
-        let totalTextTransitions = 0;
-        for (const r of scanlineRows) {
-          const rOff = r * W;
-          for (let x = 3; x < W - 3; x += 2) {
-            if (Math.abs(gray[rOff + x] - gray[rOff + x - 2]) > 30) {
-              totalTextTransitions++;
+        // Execute real-time edge & 4-corner detection (rejects surrounding table/background)
+        const detection = cvEngine.detectDocumentCornersRealtime(videoEl);
+
+        if (detection && detection.corners && detection.corners.length === 4) {
+          const corners = detection.corners; // [tl, tr, br, bl] in video coordinates
+
+          // Test stability: compare with previous frame's corners
+          let isSteady = false;
+          if (prevCorners) {
+            let maxDelta = 0;
+            for (let i = 0; i < 4; i++) {
+              const d = Math.hypot(corners[i].x - prevCorners[i].x, corners[i].y - prevCorners[i].y);
+              if (d > maxDelta) maxDelta = d;
             }
+            // Allow minor camera sensor noise while requiring physical document to be held steady
+            isSteady = (maxDelta < Math.max(16, vw * 0.035));
+          } else {
+            isSteady = true;
           }
-        }
+          prevCorners = corners;
 
-        // True Document Presence Determination:
-        // A document MUST exhibit:
-        // 1. Adequate lighting (avgLuma between 40 and 235)
-        // 2. High overall contrast (variance > 650)
-        // 3. High edge density from printed text / card boundaries (edgeDensity >= 0.075)
-        // 4. Repeated text line transitions across rows (totalTextTransitions >= 40)
-        const isDocumentPresent = (
-          avgLuma >= 40 &&
-          avgLuma <= 235 &&
-          variance >= 650 &&
-          edgeDensity >= 0.075 &&
-          totalTextTransitions >= 40
-        );
+          if (isSteady) {
+            consecutiveHits++;
+          } else {
+            consecutiveHits = Math.max(1, consecutiveHits - 1);
+          }
 
-        if (isDocumentPresent) {
-          consecutiveHits++;
           const pct = Math.min(100, Math.round((consecutiveHits / requiredHits) * 100));
+          const isReadyToCapture = consecutiveHits >= requiredHits;
+
+          // Render live quadrilateral overlay over video
+          if (edgeCtx) {
+            edgeCtx.clearRect(0, 0, clientW, clientH);
+
+            const scaleX = clientW / vw;
+            const scaleY = clientH / vh;
+            const dispPts = corners.map(p => ({
+              x: p.x * scaleX,
+              y: p.y * scaleY
+            }));
+
+            // 1. Fill document quadrilateral with subtle neon sheen
+            edgeCtx.save();
+            edgeCtx.beginPath();
+            edgeCtx.moveTo(dispPts[0].x, dispPts[0].y);
+            edgeCtx.lineTo(dispPts[1].x, dispPts[1].y);
+            edgeCtx.lineTo(dispPts[2].x, dispPts[2].y);
+            edgeCtx.lineTo(dispPts[3].x, dispPts[3].y);
+            edgeCtx.closePath();
+
+            const fillColor = isReadyToCapture ? 'rgba(16, 185, 129, 0.24)' : 'rgba(56, 189, 248, 0.14)';
+            const strokeColor = isReadyToCapture ? '#10B981' : '#38BDF8';
+            edgeCtx.fillStyle = fillColor;
+            edgeCtx.fill();
+
+            // 2. Stroke glowing document edges
+            edgeCtx.shadowColor = strokeColor;
+            edgeCtx.shadowBlur = isReadyToCapture ? 16 : 8;
+            edgeCtx.strokeStyle = strokeColor;
+            edgeCtx.lineWidth = isReadyToCapture ? 3.5 : 2.5;
+            edgeCtx.stroke();
+            edgeCtx.restore();
+
+            // 3. Draw Corner Pin Markers [TL, TR, BR, BL]
+            const labels = ['TL', 'TR', 'BR', 'BL'];
+            dispPts.forEach((pt, idx) => {
+              edgeCtx.save();
+              edgeCtx.beginPath();
+              edgeCtx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+              edgeCtx.fillStyle = '#FFFFFF';
+              edgeCtx.fill();
+              edgeCtx.strokeStyle = strokeColor;
+              edgeCtx.lineWidth = 2.5;
+              edgeCtx.stroke();
+
+              // Crosshair guide
+              edgeCtx.strokeStyle = strokeColor;
+              edgeCtx.lineWidth = 1.5;
+              edgeCtx.beginPath();
+              edgeCtx.moveTo(pt.x - 9, pt.y);
+              edgeCtx.lineTo(pt.x + 9, pt.y);
+              edgeCtx.moveTo(pt.x, pt.y - 9);
+              edgeCtx.lineTo(pt.x, pt.y + 9);
+              edgeCtx.stroke();
+
+              // Pin badge
+              edgeCtx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+              edgeCtx.fillRect(pt.x + 8, pt.y - 14, 24, 14);
+              edgeCtx.fillStyle = strokeColor;
+              edgeCtx.font = 'bold 9px monospace';
+              edgeCtx.fillText(labels[idx], pt.x + 11, pt.y - 3);
+              edgeCtx.restore();
+            });
+          }
 
           if (cardBox) cardBox.classList.add('detected');
           if (autoBadge) autoBadge.classList.add('detected');
-          if (autoBadgeText) autoBadgeText.textContent = `✨ Document Detected • Hold Steady (${pct}%)`;
-          if (statusEl) statusEl.textContent = `Document Detected • Hold Steady (${pct}%) to Process`;
+          if (autoBadgeText) {
+            autoBadgeText.textContent = isReadyToCapture 
+              ? `⚡ All Edges Locked • Auto-Capturing...` 
+              : `✨ 4 Edges Detected • Hold Steady (${pct}%)`;
+          }
+          if (statusEl) {
+            statusEl.textContent = isReadyToCapture
+              ? `Edges Locked • Capturing document without surroundings...`
+              : `Edges Detected • Keep document steady (${pct}%)`;
+          }
           if (progressFill) progressFill.style.width = `${pct}%`;
 
-          if (consecutiveHits >= requiredHits && !autoTriggered) {
+          if (isReadyToCapture && !autoTriggered) {
             autoTriggered = true;
-            if (autoBadgeText) autoBadgeText.textContent = `⚡ Document Verified • Processing Hands-Free...`;
-            if (statusEl) statusEl.textContent = `Document Captured! Running OCR & Integrity Audit...`;
+            this.lockedCorners = corners;
             this.stopAutoDetection();
             setTimeout(() => {
               this.captureScannerFrame();
-            }, 250);
+            }, 200);
           }
         } else {
-          // Document NOT present or moved away: reset progress immediately and wait!
+          // Edges not yet positioned or surroundings clutter
           consecutiveHits = 0;
+          prevCorners = null;
+          if (edgeCtx) edgeCtx.clearRect(0, 0, clientW, clientH);
           if (progressFill) progressFill.style.width = '0%';
           if (cardBox) cardBox.classList.remove('detected');
           if (autoBadge) autoBadge.classList.remove('detected');
-          if (autoBadgeText) autoBadgeText.textContent = 'Waiting for document... Place ID inside frame';
-          if (statusEl) statusEl.textContent = 'Camera Active • Waiting for document to be presented...';
+          if (autoBadgeText) autoBadgeText.textContent = 'Scanning edges... Position all 4 document borders inside frame';
+          if (statusEl) statusEl.textContent = 'Camera Active • Position document inside the reticle...';
         }
       } catch (e) {
-        console.warn('Scanner auto-detection error:', e);
+        console.warn('Scanner edge detection cycle error:', e);
       }
-    }, 200);
+    }, 120);
   }
 
   stopAutoDetection() {
     if (this.scannerDetectInterval) {
       clearInterval(this.scannerDetectInterval);
       this.scannerDetectInterval = null;
+    }
+    const edgeCanvas = document.getElementById('scannerEdgeOverlayCanvas');
+    if (edgeCanvas) {
+      const edgeCtx = edgeCanvas.getContext('2d');
+      if (edgeCtx) edgeCtx.clearRect(0, 0, edgeCanvas.width, edgeCanvas.height);
     }
   }
 
@@ -1629,12 +1666,13 @@ class VeritasApp {
     }
   }
 
-  startSimulatedScanner() {
+  startSimulatedScanner(samplePath = null) {
+    this.stopScannerStream();
     const fallbackEl = document.getElementById('scannerFallbackOverlay');
     if (fallbackEl) fallbackEl.style.display = 'none';
     const videoEl = document.getElementById('scannerVideoFeed');
     const statusEl = document.getElementById('scannerStatusText');
-    if (statusEl) statusEl.textContent = 'Interactive Simulation Feed Active • Auto-Detecting Document...';
+    if (statusEl) statusEl.textContent = 'Interactive Simulation Feed Active • Auto-Detecting Document Edges...';
 
     const simCanvas = document.createElement('canvas');
     simCanvas.width = 1280;
@@ -1643,23 +1681,31 @@ class VeritasApp {
 
     const sampleImg = new Image();
     sampleImg.crossOrigin = 'anonymous';
-    sampleImg.src = 'samples/sample_aadhaar.jpg';
+    // Sample Driving Licence with verified database record DOC-VER-020 (ALWIN MATHEW)
+    sampleImg.src = samplePath || 'samples/sample_kerala_dl.jpg';
     sampleImg.onload = () => {
-      ctx.fillStyle = '#0b1120';
-      ctx.fillRect(0, 0, 1280, 720);
-      ctx.drawImage(sampleImg, 240, 85, 800, 510);
+      this.scannerActive = true;
+      const renderSimFrame = () => {
+        if (!this.scannerActive) return;
+        // Background desk / table surrounding the card
+        ctx.fillStyle = '#0b1120';
+        ctx.fillRect(0, 0, 1280, 720);
+        // Physical document placed inside reticle
+        ctx.drawImage(sampleImg, 240, 85, 800, 510);
+        this._simAnimId = requestAnimationFrame(renderSimFrame);
+      };
+      renderSimFrame();
+
       const stream = simCanvas.captureStream ? simCanvas.captureStream(25) : null;
-      if (stream) {
+      if (stream && videoEl) {
         this.scannerStream = stream;
-        this.scannerActive = true;
-        if (videoEl) {
-          videoEl.srcObject = stream;
-          videoEl.play();
-        }
+        videoEl.srcObject = stream;
+        videoEl.play().catch(() => {});
         this.startAutoDetection();
       }
     };
     sampleImg.onerror = () => {
+      this.scannerActive = true;
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(0, 0, 1280, 720);
       ctx.fillStyle = '#ffffff';
@@ -1668,34 +1714,76 @@ class VeritasApp {
       if (stream && videoEl) {
         this.scannerStream = stream;
         videoEl.srcObject = stream;
-        videoEl.play();
+        videoEl.play().catch(() => {});
         this.startAutoDetection();
       }
     };
-    this.showToast('Simulated camera scanner feed initialized.');
+    this.showToast('Simulated document feed active with surrounding background.');
+  }
+
+  stopScannerStream() {
+    this.stopAutoDetection();
+    if (this._simAnimId) {
+      cancelAnimationFrame(this._simAnimId);
+      this._simAnimId = null;
+    }
+    if (this.scannerStream) {
+      try {
+        this.scannerStream.getTracks().forEach(track => track.stop());
+      } catch (e) {}
+      this.scannerStream = null;
+    }
+    const videoEl = document.getElementById('scannerVideoFeed');
+    if (videoEl) {
+      try { videoEl.srcObject = null; } catch (e) {}
+    }
+    this.scannerActive = false;
   }
 
   async captureScannerFrame() {
     this.stopAutoDetection();
     const videoEl = document.getElementById('scannerVideoFeed');
+    const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
     let capturedDataUrl = null;
+    let capturedCanvas = null;
 
     if (videoEl && videoEl.videoWidth > 0) {
       // Visual shutter flash feedback
       const hudEl = document.getElementById('scannerHud');
       if (hudEl) {
         hudEl.style.background = 'rgba(255, 255, 255, 0.95)';
-        setTimeout(() => { if (hudEl) hudEl.style.background = ''; }, 120);
+        setTimeout(() => { if (hudEl) hudEl.style.background = ''; }, 140);
       }
 
-      const canvas = document.createElement('canvas');
-      canvas.width = videoEl.videoWidth;
-      canvas.height = videoEl.videoHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-      capturedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      // If 4 corners were locked, warp perspective cleanly to crop out surroundings completely!
+      if (this.lockedCorners && cvEngine && cvEngine.warpPerspectiveClean) {
+        const warped = cvEngine.warpPerspectiveClean(videoEl, this.lockedCorners);
+        if (warped && warped.dataUrl) {
+          capturedDataUrl = warped.dataUrl;
+          capturedCanvas = warped.canvas;
+        }
+      }
+
+      // Fallback: If no corners locked (e.g. manual click), crop to reticle zone so surroundings are still excluded
+      if (!capturedDataUrl) {
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        const sx = Math.floor(vw * 0.12);
+        const sy = Math.floor(vh * 0.15);
+        const sw = Math.floor(vw * 0.76);
+        const sh = Math.floor(vh * 0.70);
+
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = 1000;
+        cropCanvas.height = 630;
+        const cCtx = cropCanvas.getContext('2d');
+        cCtx.imageSmoothingEnabled = true;
+        cCtx.imageSmoothingQuality = 'high';
+        cCtx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, 1000, 630);
+
+        capturedCanvas = cropCanvas;
+        capturedDataUrl = cropCanvas.toDataURL('image/jpeg', 0.95);
+      }
     } else {
       // Fallback to sample if video frame not ready
       capturedDataUrl = 'samples/sample_aadhaar.jpg';
@@ -1715,13 +1803,25 @@ class VeritasApp {
     this.uploadedGrayscaleDataUrl = null;
     this.cvMetrics = null;
 
-    this.showToast('Document captured! Running optical rectification & verification...');
+    // Immediately extract the cardholder portrait and populate the Live Photograph section
+    if (capturedCanvas && cvEngine && cvEngine.extractDocumentPortrait) {
+      try {
+        const portraitUrl = cvEngine.extractDocumentPortrait(capturedCanvas, this.currentDocType);
+        if (portraitUrl) {
+          this.uploadedPhotoDataUrl = portraitUrl;
+        }
+      } catch (err) {
+        console.warn('Portrait extraction error:', err);
+      }
+    }
+
+    this.showToast('Document isolated without surroundings! Searching database & processing...');
     this.renderScreen();
 
     try {
       this.uploadedDocHash = await this.computeFileSha256(capturedDataUrl);
       
-      // Auto-check for instant database match
+      // Auto-check for instant database match by hash
       const cleanHash = (this.uploadedDocHash || '').toLowerCase().trim();
       const instantMatch = this.verifiedDocuments.find(d => 
         (d.Document_Hash || '').toLowerCase().trim() === cleanHash
@@ -1732,8 +1832,7 @@ class VeritasApp {
 
       // Pre-processing (Grayscale & Deskewing)
       try {
-        const cvEngine = window.AuthBridgeOpenCV || window.VeritasOpenCV;
-        if (cvEngine) {
+        if (cvEngine && cvEngine.preprocessImage) {
           const pre = await cvEngine.preprocessImage(capturedDataUrl);
           if (pre) {
             this.uploadedGrayscaleDataUrl = pre.grayscaleUrl;
@@ -1743,6 +1842,11 @@ class VeritasApp {
       } catch (e) {}
 
       await this._runOpenCvDetection(this.uploadedDocDataUrl, this.currentDocType);
+
+      // Ensure extracted photo remains attached if detected during full pipeline
+      if (this.uploadedPhotoDataUrl) {
+        this.showToast('📸 Cardholder portrait extracted and populated in Live Photograph section.');
+      }
     } catch (err) {
       console.error('Error in scanner capture pipeline:', err);
       this.showToast('Scan processed with baseline parameters.');
@@ -2244,6 +2348,7 @@ class VeritasApp {
 
             <div class="scanner-viewport-wrapper">
               <video id="scannerVideoFeed" autoplay playsinline muted class="scanner-video"></video>
+              <canvas id="scannerEdgeOverlayCanvas" class="scanner-edge-canvas"></canvas>
 
               <!-- Camera Blocked / Hardware Fallback Overlay -->
               <div id="scannerFallbackOverlay" class="scanner-fallback-overlay" style="display: none;">
